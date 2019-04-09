@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>Age of Airplanes</title>
+    <link rel="stylesheet" href="stylesheet.css">
+
+    <script src="p5.min.js"></script>
+    <script src="sketch.js"></script>
+    <script type="text/javascript">
+
+// custom JS outside P5.js
+function pageLoaded() {
+  document.getElementById('defaultCanvas0').oncontextmenu = function (e) {
+    e.preventDefault();
+};
+  document.getElementById("content").onclick = function(){
+    document.getElementById("content").style.display = "none";
+  }
+}
+
+    </script>
+
+  </head>
+  <body onload="pageLoaded()">
+    <div id="content">
+      <span id='close'>X</span>
+      <h3>Follow Me</h3>
+      <p>⫸ Follow me on <a href="https://github.com/githubium" target="_blank">GitHub</a> to support my code.</p>
+      <p>⫸ Subscribe to me on <a href="https://www.youtube.com/channel/UCUcWoqQlFs8vKMGZmnlH2Lw" target="_blank">YouTube</a> for future coding videos so you can learn how to create games similar to this one.</p>
+    </div>
+  </body>
+</html>
