@@ -2,11 +2,11 @@
 
 TODO:
 - Convert class-like functions to classes? maybe
-- Fix font issues
-- Upload to GitHub
 
 
 **/
+
+p5.disableFriendlyErrors = true; // disables FES, improves performance
 
 MAXCANVASWIDTH = 1000;
 MAXCANVASHEIGHT = 500;
@@ -3661,6 +3661,7 @@ function draw() {
   let fps = frameRate();
   fill(255);
   stroke(0);
-  text("FPS: " + fps.toFixed(2), 10, height - 10);
+  strokeWeight(2);
+  text("FPS: " + fps.toFixed(2), 50, height - 5);
   noStroke();
 }
