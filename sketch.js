@@ -1,4 +1,5 @@
 /**
+// BUG: jumping inside a turret for the second time duplicates player?
 
 TODO:
 - Convert class-like functions to classes? maybe
@@ -13,9 +14,7 @@ MAXCANVASHEIGHT = 500;
 
 var number_of_teams = 3;// 2 to 10
 
-var notification, Airplane, me, Base, Person, plane, Explosion, buildMenu, teamStats, Tower, Turret, weaponScroller, simple, planeData, buyData, tutorial, pointer, factory;
-var buyData, turretData, baseData, planeData, elevationData;
-var emptyFunc = function() {};
+var notification, Airplane, Base, Person, plane, Explosion, buildMenu, teamStats, Tower, Turret, simple, planeData, buyData, tutorial, pointer, factory, buyData, turretData, baseData, planeData, elevationData, cam, images, createInstances, cameraOverlay;;
 var scene = 0;
 var explosionCount = 0;
 var framesPerSecond = 60;
@@ -37,9 +36,8 @@ var teamNames = [
   "Team 9",
   "Team 10",
 ];
-var downKeys = Object.create(null);
-
-var cam, images, createInstances, cameraOverlay;
+var downKeys = Object.create({});
+var emptyFunc = function() {};
 
 /** Tools (functions) **/
 var X = function (cor, objectHt) { // Calculate on-screen position based on camera variables AND object drawn's height (which defaults to 0)
@@ -70,9 +68,15 @@ var cameraUpdate = function () {
   /* Mouse drag logic */
   if (cam.isFollowMode) {
     ///cam.followOffsetAngle = ((cam.hw-mouseX)*cos(me.rot)+(cam.hh-mouseY)*sin(me.rot) > 200) ? 180 : 0; // For mouse-behind-camera mode
-    cam.followOffsetAngle = (mouseIsPressed && mouseButton === 3) ? 180 : 0;// If mouse middle button is pressed
-    cam.x = me.x + RevS(cam.followOffsetDistance * cos(me.rot + cam.followOffsetAngle), me.ht); // Make camera follow player with specific offsets
-    cam.y = me.y + RevS(cam.followOffsetDistance * sin(me.rot + cam.followOffsetAngle), me.ht);
+    if (controller.me.type === "blobling") {
+      cam.x += (controller.me.x-cam.x)*0.05;
+      cam.y += (controller.me.y-cam.y)*0.05;
+    } else {
+
+      cam.followOffsetAngle = (mouseIsPressed && mouseButton === CENTER) ? 180 : 0;// If mouse middle button is pressed
+      cam.x = controller.me.x + RevS(cam.followOffsetDistance * cos(controller.me.rot + cam.followOffsetAngle), controller.me.ht); // Make camera follow player with specific offsets
+      cam.y = controller.me.y + RevS(cam.followOffsetDistance * sin(controller.me.rot + cam.followOffsetAngle), controller.me.ht);
+    }
   } else { // follow player
     if (mouseIsPressed && mouseButton === RIGHT) {
       cam.dragForceX = (pmouseX - mouseX) * cam.ht;
@@ -89,9 +93,9 @@ var cameraUpdate = function () {
 
   /* I/O key zoom logic */
   if (downKeys[73]) {
-    cam.gotoHt += (me.ht-cam.gotoHt)*0.04;
+    cam.gotoHt += (controller.me.ht-cam.gotoHt)*0.04;
   } else if (downKeys[79]) {
-    cam.gotoHt -= (me.ht-cam.gotoHt)*0.04;
+    cam.gotoHt -= (controller.me.ht-cam.gotoHt)*0.04;
   }
 
   /* Smooth zoom logic */
@@ -142,16 +146,18 @@ var buy = function(team, itemName, x, y, angle) {// Angle param is optional
 
 }
 };
-
-
+var funcOrValue = function(f) {
+  if (typeof f === "function") {
+    return f();
+  }
+  return f;
+}
 function cameraOverlay() {
   if (cam.invertCountdown > 0) {
     cam.invertCountdown --;
     filter(INVERT);
   }
 };
-
-
 
 function setup() {
   // Settings
@@ -184,7 +190,6 @@ function setup() {
     impact: loadFont("Fonts/Impact.ttf"),
   };
 
-
   cam = { // Camera variables
     ht: 0.1, // ht = height, the number of pixels high the camera is from the ground
     gotoHt: 0.0001, // Used for the smooth effect when zooming with the mouse scroll
@@ -194,7 +199,7 @@ function setup() {
     dragForceY: 0, // ^
     hw: windowWidth/2, // hw = half width of canvas
     hh: windowHeight/2, // hh = half height of canvas
-    followOffsetDistance: 200,
+    followOffsetDistance: min(windowWidth, windowHeight)*0.4,
     followOffsetAngle: 0,
     isFollowMode: true,
     invertCountdown: 0,
@@ -205,7 +210,6 @@ function setup() {
 
       return get(0, 0, 100, 100); // x, y, width, height of the image
     },
-
     pauseMenuIcon: function() {
       stroke(255, 150);
       strokeWeight(4);
@@ -215,7 +219,6 @@ function setup() {
 
       return get(0, 0, 30, 30);
     },
-
     pauseMenuIconHover: function() {
       stroke(255);
       strokeWeight(4);
@@ -225,7 +228,6 @@ function setup() {
 
       return get(0, 0, 30, 30);
     },
-
     closeIcon: function() {
       stroke(0, 150);
       strokeWeight(4);
@@ -262,7 +264,6 @@ function setup() {
       }
       return get(0, 0, 100, 100);
     },
-
     tower__: function (teamIndex) {
       var teamColor = teamColors[teamIndex];
 
@@ -288,7 +289,6 @@ function setup() {
 
       return get(0, 0, 600, 600);
     },
-
     base__: function (teamIndex) {
       var teamColor = teamColors[teamIndex];
 
@@ -314,7 +314,6 @@ function setup() {
 
       return get(0, 0, 600, 600);
     },
-
     turret__: function (teamIndex) {
       var teamColor = teamColors[teamIndex];
 
@@ -329,8 +328,7 @@ function setup() {
 
       return get(0, 0, 100, 100);
     },
-
-    planeTemplate: function () {
+    planePlaceholder: function () {
       /**
 
       Template for implementing an airplane drawing:
@@ -352,7 +350,6 @@ function setup() {
 
       return get(0, 0, 100, 100);
     },
-
     plane_f2a__: function (teamIndex) {
       var teamColor = teamColors[teamIndex];
 
@@ -414,7 +411,6 @@ function setup() {
 
       return get(0, 0, 200, 200);
     },
-
     plane_f2b__: function (teamIndex) {
       var teamColor = teamColors[teamIndex];
 
@@ -498,9 +494,7 @@ function setup() {
       line(143, 147, 143, 190);
 
       return get(0, 0, 200, 200);
-
     },
-
     plane_f3__: function (teamIndex) {
       var teamColor = teamColors[teamIndex];
       // Created by: DigitalDragon @DigitalDragon
@@ -921,17 +915,14 @@ function setup() {
 
       return get(0, 0, 200, 200);
     },
-
     weaponImgEmpty: function() {
       return get(0, 0, 2, 2);
     },
-
     weaponImgUnknown: function() {
       ///image(getImage("avatars/questionmark"), 10, 10, 20, 20);
 
       return get(0, 0, 20, 20);
     },
-
     weaponImgBullet: function() {
       stroke(50);
       strokeWeight(1);
@@ -941,7 +932,6 @@ function setup() {
 
       return get(0, 0, 20, 20);
     },
-
     weaponImgBullet2: function() {
       noStroke();
       fill(196,189,167);
@@ -954,82 +944,38 @@ function setup() {
     },
   };
 
-
-
-
   createInstances = function (gameType) {
-
-
-
-    if (gameType === "tutorial") {
-      factory.disabled = true;// Temporarily disabled
-      tutorial.isOn = true;
-      new Tower(0, 0, 0);
-      me = new Person(-0.06, 0.01);
-    } else if (gameType === "game") {
-      factory.disabled = false;// Enabled the whole time
-      tutorial.isOn = false;
-      new Tower(0, 0.01, 0.02);
-      me = new Person(0, 0);
-    }
-
-    for (var i = 1; i < number_of_teams; i ++) {// Spawn enemy khan towers
+    for (var i = 0; i < number_of_teams; i ++) {// Spawn enemy khan towers
       var angle = 360*i/number_of_teams;
       new Tower(i, 1*cos(angle), 1*sin(angle));
     }
 
-    frameCount = -5;// For teamStats AI spawning logic
+    if (gameType === "tutorial") {
+      factory.disabled = true;// Temporarily disabled
+      tutorial.isOn = true;
 
-  };
 
-  var transparentImage = function( ximg ) {
-    // Source: khanacademy.org/cs/-/4329014965
-
-    var i = ximg;
-    var w = i.width;
-    var h = i.height;
-    var g = createGraphics(w,h,'P2D'); //make another drawing board/canvas
-    this.img = g; // holds modified image data
-    this.width = i.width;
-    this.height= i.height;
-
-    g.beginDraw();
-    g.background(255, 255, 255, 0); //fill it with a transparent color
-    g.image(i); //draw the image on it
-    g.endDraw();
-
-    this.opacity = function( opacity )
-    {
-      opacity = opacity+0.0001 || 0.5;
-      g.beginDraw();
-      g.background(255, 255, 255, 0); //fill it with a transparent color
-      g.image(i); //draw the image on it
-      g.loadPixels();
-      var p=g.imageData;
-      p=p.data; //p[] now contains the pixel data of g, in RGBARGBA... format
-
-      for(var j=p.length-1;j>0;j-=4){ //loop backwards through the pixel data by fours
-        p[j]*= opacity; //multiply opacity byte
+      for (var i = 0; i < 4; i ++) {
+        for (var j = 0; j < 2; j ++) {
+          if (i!==2 || j!==0) {
+            new Blobling(0, 0.032+i*0.01, j*0.01+0.1);
+          } else {
+            controller.swap(new Blobling(0, 0.032+i*0.01, j*0.01+0.1));
+          }
+          new Airplane(0, 0.025+0.02*i, 0.015+0.02*j, -random(20, 28));
+        }
       }
+      //new Base(0, 0, 0);
+    } else if (gameType === "game") {
+      factory.disabled = false;// Enabled the whole time
+      tutorial.isOn = false;
+      controller.swap(new Blobling(0, teamStats.teamTower[0].x-0.007, 0.014));
+    }
 
-      g.updatePixels(); //put pixel data back into g
-      g.endDraw();
-      return this;
-    };
-
-    // Draw image using original aspect ration with optional scaling in proportion.
-    this.draw = function(x,y,size) {
-      image(this.img, x, y, size, size);
-    };
-
-    return this;
+    frameCount = -5;// For teamStats AI spawning logic
   };
-
-
 
   /** Classes **/
-
-
   var Notification = function () {
     this.messages = [];
     this.typesColors = [null, color(255, 255, 255), color(255, 59, 59), color(0, 255, 0), color(255, 127, 0)];
@@ -1087,10 +1033,8 @@ function setup() {
           this.timesLeft.splice(i, 1);
         }
       }
-
       textAlign(CENTER, CENTER);
     };
-
   };
 
   var MenuButton = function (onScene, message, x, y, w, h, action, buttonColor) {// Color param is optional
@@ -1133,7 +1077,8 @@ function setup() {
       rect(this.x1*width, this.y1*height, this.w*width, this.h*height);
 
       textFont(fonts.monoItalics, 180*this.h);
-      fill(0, 0, 0);
+      fill(0);
+      noStroke();
       text(this.message, this.posX*width, this.posY*height);
       noStroke();
     };
@@ -1184,139 +1129,336 @@ function setup() {
   };
 };
 
-var WeaponScroller = function () {
+var Controller = function () {
   this.y1 = 0;
   this.isMouseInside = false;
   this.x1 = width-80;
+  this.me = null;
   this.descriptionBoxColor = color(219, 122, 37);
 
+  this.swap = function(to) {
+    if (this.me !== null) {
+      this.me.hp = Math.ceil(this.me.hp*0.1);
+      this.me.hpMax = Math.ceil(this.me.maxHp*0.1);
+      switch(this.me.type) {
+        case "blobling":
+          this.me.isDead = true;
+          break;
+        case "plane":
+
+          break;
+        case "turret":
+          this.me.isAi = true;
+
+          break;
+
+      }
+    }
+console.log(this.me, to);
+    to.hp *= 10;
+    to.hpMax *= 10;
+    to.isAi = false;
+    switch(to.type) {
+      case "blobling":
+        if (this.me !== null) {
+          to.isDead = false;
+          airObjects.push(to);
+          infoBarObjects.push(to);
+          to.velX = to.velY = 0;
+          to.x = this.me.x;
+          to.y = this.me.y;
+          to.ht = this.me.ht;
+        }
+        break;
+      case "plane":
+        this.storedBlobling = this.me;
+        break;
+      case "turret":
+
+        this.storedBlobling = this.me;
+        break;
+    }
+    this.me = to;
+  }
+
   this.onMouseScroll = function (scrollValue) {
-    if (me.weapons.length !== 0) {
+    switch(this.me.type) {
+      case "blobling":
+
+        break;
+      case "plane":
+
+        break;
+      case "turret":
+
+        break;
+    }
+
+    if (this.me.weapons.length !== 0) {
       if (scrollValue > 0) {
-        if (me.weaponIndex2 === 0) {
-          me.weaponIndex2 = (me.weapons.length >> 1) - 1;
+        if (this.me.weaponIndex2 === 0) {
+          this.me.weaponIndex2 = (this.me.weapons.length >> 1) - 1;
         } else {
-          me.weaponIndex2--;
+          this.me.weaponIndex2--;
         }
       } else {
-        me.weaponIndex2++;
-        if (me.weaponIndex2 >= me.weapons.length >> 1) {
-          me.weaponIndex2 = 0;
+        this.me.weaponIndex2++;
+        if (this.me.weaponIndex2 >= this.me.weapons.length >> 1) {
+          this.me.weaponIndex2 = 0;
         }
       }
     }
   };
 
   this.onMouseDown = function (mouseBut) {
-    if (me.weapons.length !== 0 && !this.isMouseInside && !buildMenu.isMouseInside) {
+    switch(this.me.type) {
+      case "plane":
+
+        break;
+      case "turret":
+
+        break;
+    }
+    if (this.me.weapons.length !== 0 && !this.isMouseInside && !buildMenu.isMouseInside) {
       if (mouseBut === LEFT) {
-        me.weapons[me.weaponIndex2*2].onMouseDown();
+        this.me.weapons[this.me.weaponIndex2*2].onMouseDown();
       } else if (mouseBut === RIGHT) {
-        me.weapons[me.weaponIndex2*2+1].onMouseDown();
+        this.me.weapons[this.me.weaponIndex2*2+1].onMouseDown();
       }
     }
   };
 
   this.onMouseUp = function (mouseBut) {// Unfixable BUG here... mouseBut doesn't always yeild the correct value
-  if (me.weapons.length !== 0 && !this.isMouseInside && !buildMenu.isMouseInside) {
-    if (mouseBut === LEFT) {
-      me.weapons[me.weaponIndex2*2].onMouseUp();
+    switch(this.me.type) {
+      case "plane":
+
+        break;
+      case "turret":
+
+        break;
     }
-    if (mouseBut === RIGHT) {
-      me.weapons[me.weaponIndex2*2+1].onMouseUp();
+    if (this.me.weapons.length !== 0 && !this.isMouseInside && !buildMenu.isMouseInside) {
+      if (mouseBut === LEFT) {
+        this.me.weapons[this.me.weaponIndex2*2].onMouseUp();
+      }
+      if (mouseBut === RIGHT) {
+        this.me.weapons[this.me.weaponIndex2*2+1].onMouseUp();
+      }
     }
-  }
-};
+  };
 
-this.meUpgradeOldWeaponsCleanup = function() {// Fixes laser and other bugs
-  me.weaponIndex2 = 0;// Solves a bug
-  for (var i = 0; i < me.weapons.length; i ++) {
-    me.weapons[i].onMouseUp();
-  }
-  delete me.weapons;/// Not sure if this is required...
-};
-
-this.update = function () {
-  if (me.weapons.length !== 0) {
-    textFont(fonts.verdanaBold, 10);
-    strokeWeight(1);
-
-    var y2 = 20 * me.weapons.length;// Top edge of the grid thing y cordinate
-
-    this.isMouseInside = mouseX >= this.x1 && mouseY < y2;
-
-    var midIndex = me.weapons.length >> 1;
-    var shouldBeIndex2 = Math.floor((mouseY) / 40);
-
-    for (var i = 0; i < midIndex; i++) {
-
-      // Draw boxes
-      fill(230, 155 + this.isMouseInside * 100);
-      var yCor = 40 * i;
-
-      if (this.isMouseInside && shouldBeIndex2 === i) {// If mouseY is hovering over a row of boxes
-        if (mouseX < this.x1+40) {// MouseX hovering over the first column of boxes
-          stroke(this.descriptionBoxColor);
-          rect(this.x1, yCor, 38, 38);
-          stroke(0);
-          rect(this.x1+40, yCor, 38, 38);
-        } else {// MouseX hovering over the second column of boxes
-          stroke(0);
-          rect(this.x1, yCor, 38, 38);
-          stroke(this.descriptionBoxColor);
-          rect(this.x1+40, yCor, 38, 38);
+  this.onKeyUp = function(kc) {
+    switch(this.me.type) {
+      case "blobling":
+        if (kc === 38 || kc === 87) {
+          this.me.velY = 0;
+        } else if (kc === 40 || kc === 83) {
+          this.me.velY = 0;
+        } else if (kc === 37 || kc === 65) {
+          this.me.velX = 0;
+        } else if (kc === 39 || kc === 68) {
+          this.me.velX = 0;
         }
+        break;
+      case "plane":
+      if (kc === 38 || kc === 40 || kc === 87 || kc === 83) { // up, down, W, S
+        this.me.velGoto = this.me.velNormal;
+      } else if (kc === 37 || kc === 39 || kc === 65 || kc === 68) { // left, right, A, D
+        this.me.gotoRotSpeed = 0;
+      }
+        break;
+      case "turret":
+
+        break;
+    }
+    if (kc === 13) {
+      this.showCirclesOfEnter = false;
+    }
+  };
+
+  this.onKeyDown = function(kc) {
+    switch(this.me.type) {
+      case "blobling":
+        if (kc === 38 || kc === 87) {
+          this.me.velY = -this.me.vel;
+        } else if (kc === 40 || kc === 83) {
+          this.me.velY = this.me.vel;
+        } else if (kc === 37 || kc === 65) {
+          this.me.velX = -this.me.vel;
+        } else if (kc === 39 || kc === 68) {
+          this.me.velX = this.me.vel;
+        }
+        break;
+      case "plane":
+        if (kc === 38 || kc === 87) { // up arrow or W
+          if (this.me.ht === 0) { // If plane is on the ground
+            this.me.velGoto = this.me.velMin;
+          } else {
+            this.me.velGoto = this.me.velMax;
+          }
+        } else if (kc === 40 || kc === 83) { // down arrow or S
+          this.me.velGoto = this.me.velMin;
+        } else if (kc === 37 || kc === 65) { // left arrow or A
+          this.me.gotoRotSpeed = -this.me.rotSpeedMax;
+        } else if (kc === 39 || kc === 68) { // right arrow or D
+          this.me.gotoRotSpeed = this.me.rotSpeedMax;
+        } else if (kc === 69) { // E key
+          this.me.bumpUp();
+        } else if (kc === 81) { // Q key
+          this.me.bumpDown();
+        }/*/// else if (keyCode === 13) { // Enter key
+          if (this.me.ht === 0) { // If plane's height is ground
+          this.me.velGoto = 0; // Stop plane
+          this.me.hp /= 10;// Reset HP
+          me.hpMax = me.hp;
+          me = this.driver;
+          this.driver = null;
+          me.isDead = false;
+          airObjects.push(me);
+          me.x = this.x;
+          me.y = this.y;
+        }*/
+        break;
+      case "turret":
+
+        break;
+    }
+    if (kc === 13) { //enter key
+      if (this.me.type === "blobling") {
+        this.showCirclesOfEnter = true;
       } else {
-        if (mouseIsPressed && this.isMouseInside) {
-          me.weaponIndex2 = shouldBeIndex2;
+        this.swap(this.storedBlobling);
+      }
+    }
+  };
+
+  this.meUpgradeOldWeaponsCleanup = function() {// Fixes laser and other bugs
+    this.me.weaponIndex2 = 0;// Solves a bug
+    for (var i = 0; i < this.me.weapons.length; i ++) {
+      this.me.weapons[i].onMouseUp();
+    }
+    delete this.me.weapons;/// Not sure if this is required...
+  };
+
+  this.update = function () {
+    if (this.me.weapons.length !== 0) {
+      textFont(fonts.verdanaBold, 10);
+      strokeWeight(1);
+
+      var y2 = 20 * this.me.weapons.length;// Top edge of the grid thing y cordinate
+
+      this.isMouseInside = mouseX >= this.x1 && mouseY < y2;
+
+      var midIndex = this.me.weapons.length >> 1;
+      var shouldBeIndex2 = Math.floor((mouseY) / 40);
+
+      for (var i = 0; i < midIndex; i++) {
+
+        // Draw boxes
+        fill(230, 155 + this.isMouseInside * 100);
+        var yCor = 40 * i;
+
+        if (this.isMouseInside && shouldBeIndex2 === i) {// If mouseY is hovering over a row of boxes
+          if (mouseX < this.x1+40) {// MouseX hovering over the first column of boxes
+            stroke(this.descriptionBoxColor);
+            rect(this.x1, yCor, 38, 38);
+            stroke(0);
+            rect(this.x1+40, yCor, 38, 38);
+          } else {// MouseX hovering over the second column of boxes
+            stroke(0);
+            rect(this.x1, yCor, 38, 38);
+            stroke(this.descriptionBoxColor);
+            rect(this.x1+40, yCor, 38, 38);
+          }
+        } else {
+          if (mouseIsPressed && this.isMouseInside) {
+            this.me.weaponIndex2 = shouldBeIndex2;
+          }
+          stroke(0);
+          rect(this.x1, yCor, 38, 38);
+          rect(this.x1+40, yCor, 38, 38);
         }
-        stroke(0);
-        rect(this.x1, yCor, 38, 38);
-        rect(this.x1+40, yCor, 38, 38);
+
+        // Red overlay of the currently selected weapon set
+        if (this.me.weaponIndex2 === i) {
+          stroke(teamColors[0]);
+          noFill();
+          rect(this.x1-1, yCor-1, 80, 40);
+        }
+
+        // Draw image and stats
+        image(this.me.weapons[i * 2].image, this.x1+19, yCor+20);
+        image(this.me.weapons[i * 2 + 1].image, this.x1+59, yCor+20);
+        noStroke();
+        fill(50);
+        textAlign(LEFT, BOTTOM);
+        text(this.me.weapons[i * 2].statDamage, this.x1+2, yCor + 10);
+        text(this.me.weapons[i * 2 + 1].statDamage, this.x1+41, yCor + 10);
+        textAlign(RIGHT, BOTTOM);
+        text(this.me.weapons[i * 2].statFireRate, this.x1+39, yCor + 36);
+        text(this.me.weapons[i * 2 + 1].statFireRate, this.x1+78, yCor + 36);
+        textAlign(CENTER, CENTER);// Reset textAlign to original
       }
 
-      // Red overlay of the currently selected weapon set
-      if (me.weaponIndex2 === i) {
-        stroke(teamColors[0]);
-        noFill();
-        rect(this.x1-1, yCor-1, 80, 40);
+      if (this.isMouseInside) {
+        // Description box
+        fill(180);// Gray color
+        if (this.me.weaponIndex2 === shouldBeIndex2) {
+          stroke(teamColors[0]);
+        } else {
+          stroke(this.descriptionBoxColor);
+        }
+        rect(this.x1-310, 10, 300, 100);// Box
+        noStroke();
+        fill(0);
+        var descripIndex1 = shouldBeIndex2 * 2 + Number(mouseX >= this.x1+40);// Number() converts boolean (true, false) into a number (1, 0)
+        textFont(fonts.verdana, 15);
+        text(this.me.weapons[descripIndex1].name, this.x1-155, 20);// Title
+        textFont(fonts.verdanaBold, 20);
+        text(this.me.weapons[descripIndex1].description, this.x1-155, 60);// Description
       }
-
-      // Draw image and stats
-      image(me.weapons[i * 2].image, this.x1+19, yCor+20);
-      image(me.weapons[i * 2 + 1].image, this.x1+59, yCor+20);
       noStroke();
-      fill(50);
-      textAlign(LEFT, BOTTOM);
-      text(me.weapons[i * 2].statDamage, this.x1+2, yCor + 10);
-      text(me.weapons[i * 2 + 1].statDamage, this.x1+41, yCor + 10);
-      textAlign(RIGHT, BOTTOM);
-      text(me.weapons[i * 2].statFireRate, this.x1+39, yCor + 36);
-      text(me.weapons[i * 2 + 1].statFireRate, this.x1+78, yCor + 36);
-      textAlign(CENTER, CENTER);// Reset textAlign to original
+    } else {
+      this.isMouseInside = false;
     }
 
-    if (this.isMouseInside) {
-      // Description box
-      fill(180);// Gray color
-      if (me.weaponIndex2 === shouldBeIndex2) {
-        stroke(teamColors[0]);
-      } else {
-        stroke(this.descriptionBoxColor);
+    if (this.showCirclesOfEnter) {
+      if (this.me.type === "blobling") {
+        noFill();
+        strokeWeight(2);
+        var bestDist = 1;
+        var bestObj = null;
+        for (var i = infoBarObjects.length-1; i >= 0; i--) {
+          var iboi = infoBarObjects[i];
+          if (iboi.type === "plane") {
+            stroke(0, 255, 255);
+          } else if (iboi.type === "turret") {
+            stroke(255, 127, 127);
+          } else {
+            continue;
+          }
+          ellipse(X(iboi.x), Y(iboi.y), S(iboi.radius * 2), S(iboi.radius * 2)); ///hmm could I switch to iboi.displayedX?
+          var distance = dist(iboi.x, iboi.y, this.me.x, this.me.y);
+          if (distance < bestDist) {
+            bestDist = distance;
+            bestObj = iboi;
+          }
+        }
+        if (bestObj !== null) {
+          if (bestDist < bestObj.radius) {
+            if (bestDist < bestObj.radius/2) {// Very near
+              this.swap(bestObj);
+            } else {// Somewhat near
+              this.me.x += (bestObj.x-this.me.x)*0.03;
+              this.me.y += (bestObj.y-this.me.y)*0.03;
+            }
+          }
+        }
       }
-      rect(this.x1-310, 10, 300, 100);// Box
-      fill(0);
-      var descripIndex1 = shouldBeIndex2 * 2 + Number(mouseX >= this.x1+40);// Number() converts boolean (true, false) into a number (1, 0)
-      textFont(fonts.verdana, 15);
-      text(me.weapons[descripIndex1].name, this.x1-155, 20);// Title
-      textFont(fonts.verdanaBold, 20);
-      text(me.weapons[descripIndex1].description, this.x1-155, 60);// Description
+
+      noStroke();
     }
-    noStroke();
-  } else {
-    this.isMouseInside = false;
-  }
-};
+  };
 };
 
 var ProjectileTemplate = function(weaponSource) {// create instance of this when weapon is fired
@@ -1351,7 +1493,7 @@ var ProjectileTemplate = function(weaponSource) {// create instance of this when
         var explo = new Explosion(plane, 1);
         plane.isDead = true;
         plane.myExplosion = explo;
-        if (this.planeObj === me) {// If you shot down the plane yourself
+        if (this.planeObj === controller.me) {// If you shot down the plane yourself
           notification.send("You shot down a " + plane.name, 3);
         }
       }
@@ -1694,10 +1836,6 @@ var weapon = {
 
 };
 
-
-
-
-
 SupportPillar = function(team, x, y, parentBuilding) {
   this.name = "Support Pillar";
   this.isDead = false;
@@ -1713,23 +1851,9 @@ SupportPillar = function(team, x, y, parentBuilding) {
   this.isVisible = parentBuilding.isVisible;
   this.zx = this.zy = this.gx = this.gy = 0;// Set by parentBuilding
   this.weapons = [];// Required property for weaponScroller to work
-  this.driver = null;// Required property to jump inside pillars
 
   this.update = function() {
     this.isVisible = this.parentBuilding.isVisible;
-  };
-
-  this.onKeyUp = emptyFunc;
-
-  this.onKeyDown = function() {
-    if (keyCode === 13) {// if enter is pressed, player jumps out of pillar
-      me = this.driver;
-      this.hp /= 10;
-      this.hpMax = this.hp;
-      this.driver = null;
-      me.isDead = false;
-      airObjects.push(me);
-    }
   };
 
   this.draw = function() {
@@ -1764,8 +1888,10 @@ Tower = function(team, x, y) {
   this.radius = 0.01;
   this.ht = metersToHt(18); // ~60 feet
   this.hp = this.hpMax = 1000;
-  this.color1 = color(lerpColor(color(0), teamColors[this.team], 0.8), 100);
-  this.color2 = color(teamColors[this.team], 100);
+  var col = lerpColor(color(0), teamColors[this.team], 0.8);
+  this.color1 = color(red(col), green(col), blue(col), 100);
+  var col = teamColors[this.team];
+  this.color2 = color(red(col), green(col), blue(col), 100);
 
   this.update = function () {
     if (this.isVisible) {
@@ -1792,7 +1918,7 @@ Tower = function(team, x, y) {
 
       ellipse(this.gx, this.gy, this.gRadius*2, this.gRadius*2);
 
-      var angleTowerToPlayer = atan2(me.y-this.y, me.x-this.x)+90;
+      var angleTowerToPlayer = atan2(controller.me.y-this.y, controller.me.x-this.x)+90;
       var zChX = this.zRadius*cos(frameCount);
       var zChY = this.zRadius*sin(frameCount);
       var gChX = this.gRadius*cos(frameCount);
@@ -1857,7 +1983,7 @@ Base = function (team, x, y) {
   ];
 
   this.meCollide = function() {
-    return me.ht < this.ht && me.x > this.x1 && me.x < this.x2 && me.y > this.y1 && me.y < this.y2;
+    return controller.me.ht < this.ht && controller.me.x > this.x1 && controller.me.x < this.x2 && controller.me.y > this.y1 && controller.me.y < this.y2;
   };
 
   this.update = function () {
@@ -1951,6 +2077,7 @@ Base = function (team, x, y) {
 Turret = function(team, x, y) {
   this.name = "Team "+team+" Turret";
   this.isDead = false;
+  this.type = "turret";
   airObjects.push(this);
   infoBarObjects.push(this);
   this.team = team;
@@ -1971,52 +2098,43 @@ Turret = function(team, x, y) {
   this.fireTimer = this.fireRate = 20;// Fire
   this.pointAt = null;// null = pointing at nothing, otherwise this.pointAt is the object reference
   this.hp = this.hpMax = 10;
-  this.driver = null;// null = no person inside, otherwise Player reference
+  this.isAi = null;// null = no person inside, otherwise Player reference
   /// upgrade this (this.upgradeInto = SuperTurret)
 
-  this.onKeyDown = function() {
-    if (keyCode === 13) {// If enter is pressed, player jumps out of turret
-      me = this.driver;
-      this.driver = null;
-      this.hp /= 10;// Reset HP
-      me.hpMax = me.hp;
-      me.isDead = false;
-      airObjects.push(me);
+  this.ai = function() {
+    // Search logic
+    if (!--this.searchTimer) {// this is true every 63 frames
+      var bestPlane = null;
+      var bestDist = this.range;
+      var distance;
+      for (var i = 0; i < infoBarObjects.length; i ++) {
+        var ibo = infoBarObjects[i];
+        if (ibo.team !== this.team) {
+          distance = Math.sqrt(sq(ibo.x-this.x)+sq(ibo.y-this.y));
+          if (distance < bestDist) {
+            bestPlane = ibo;
+            bestDist = distance;
+          }
+        }
+      }
+      this.pointAt = bestPlane;
+      this.searchTimer = this.searchReset;
+    }
+
+
+    if (this.pointAt !== null) {
+      this.rot = atan2(this.pointAt.y-this.y, this.pointAt.x-this.x);
+      if (!--this.fireTimer) {// this is true every 20 frames
+        this.weapons[0].onMouseDown();
+        this.fireTimer = this.fireRate;
+      }
     }
   };
 
-  this.onKeyUp = emptyFunc;
-
   this.update = function() {
 
-    if (this.driver === null) {// If no person inside
-      // Search logic
-      if (!--this.searchTimer) {// this is true every 63 frames
-        var bestPlane = null;
-        var bestDist = this.range;
-        var distance;
-        for (var i = 0; i < infoBarObjects.length; i ++) {
-          var ibo = infoBarObjects[i];
-          if (ibo.team !== this.team) {
-            distance = Math.sqrt(sq(ibo.x-this.x)+sq(ibo.y-this.y));
-            if (distance < bestDist) {
-              bestPlane = ibo;
-              bestDist = distance;
-            }
-          }
-        }
-        this.pointAt = bestPlane;
-        this.searchTimer = this.searchReset;
-      }
-
-
-      if (this.pointAt !== null) {
-        this.rot = atan2(this.pointAt.y-this.y, this.pointAt.x-this.x);
-        if (!--this.fireTimer) {// this is true every 20 frames
-          this.weapons[0].onMouseDown();
-          this.fireTimer = this.fireRate;
-        }
-      }
+    if (this.isAi) {// If AI mode
+      this.ai();
     } else {
       this.rot = atan2(RevY(mouseY)-this.y, RevX(mouseX)-this.x);
     }
@@ -2050,7 +2168,65 @@ Turret = function(team, x, y) {
   };
 };
 
-var AIAlgorithms = function (thePlane) {///wip
+Airplane = function(team, x, y, rot, dataKey) {
+
+  var dk = (dataKey === undefined) ? "f2a" : dataKey;// Set default to "f2a"
+
+  // Fetch data and assign it to this
+  var avoidError = this;
+  avoidError = Object.assign(this, planeData[dk]);
+
+  // Set image
+  this.image = images["plane_"+dk+"__team"+team];
+  if (this.upgradeSpecific === undefined) {
+    this.updateSpecific = function () {};// Empty function
+  }
+
+  // Link weapons
+  this.weapons = [];
+  for (var i = 0; i < this.w.length; i ++) {
+    this.weapons[i] = new weapon[this.w[i]](this);
+  }
+
+  // Always the
+  this.type = "plane";
+  this.isAi = false;
+  this.isDead = false;
+  airObjects.push(this);
+  infoBarObjects.push(this);
+  this.team = team;
+  this.x = x;
+  this.y = y;
+  this.rot = (rot === undefined) ? 0 : rot; // rot is airplane's rotation in degrees; default is 0
+  this.velX = 0; // Vel (velocity) refers to plane speed in distance/time, rot (speed) refers to rotational turn rate
+  this.velY = 0;
+  this.velGoto = 0;
+  this.vel = 0;
+  this.elevation = 0;
+  this.ht = 0;
+  this.gotoHt = 0;
+  this.gotoRotSpeed = 0;
+  this.rotSpeed = 0; // stored rate of rotation when the player pushes LEFT or RIGHT
+  this.hpMax = this.hp;
+  this.isVisible = false; // if the plane is on the screen
+  this.weaponIndex2 = 0;
+};
+Airplane.prototype.bumpUp = function() {// Go UP in elevation
+    if (this.vel * 2 > this.velMin) { // If plane's velocity if over half the minimum
+    this.elevation += (this.elevation < this.elevationMax) ? 1 : 0;
+    this.gotoHt = elevationData[this.elevation];
+    if (this.ht === 0) { // If plane on ground and UP/W is pressed
+      this.velGoto = this.velMax; // accelarate plane to max speed
+      this.ht += elevationData.changeRate;
+    }
+  }
+};
+Airplane.prototype.bumpDown = function() {// Go DOWN  in elevation
+  this.elevation -= (this.elevation > 0) ? 1 : 0;
+  this.gotoHt = elevationData[this.elevation];
+};
+Airplane.prototype.ai = function() {
+  var thePlane = this;///
   if (thePlane.aiOff === undefined) {
     if (thePlane.ht <= 0) {// If plane on ground
 
@@ -2127,69 +2303,10 @@ var AIAlgorithms = function (thePlane) {///wip
       }
     }
   }
-
-};
-
-Airplane = function(team, x, y, rot, dataKey) {
-  var dk = (dataKey === undefined) ? "f2a" : dataKey;// Set default to "f2a"
-
-  // Fetch data and assign it to this
-  var avoidOhNoes = this;
-  avoidOhNoes = Object.assign(this, planeData[dk]);
-
-  // Set image
-  this.image = images["plane_"+dk+"__team"+team];
-  if (this.upgradeSpecific === undefined) {
-    this.updateSpecific = function () {};// Empty function
-  }
-
-  // Link weapons
-  this.weapons = [];
-  for (var i = 0; i < this.w.length; i ++) {
-    this.weapons[i] = new weapon[this.w[i]](this);
-  }
-
-  // Always the same
-  this.isDead = false;
-  airObjects.push(this);
-  infoBarObjects.push(this);
-  this.team = team;
-  this.x = x;
-  this.y = y;
-  this.rot = (rot === undefined) ? 0 : rot; // rot is airplane's rotation in degrees; default is 0
-  this.velX = 0; // Vel (velocity) refers to plane speed in distance/time, rot (speed) refers to rotational turn rate
-  this.velY = 0;
-  this.velGoto = 0;
-  this.vel = 0;
-  this.elevation = 0;
-  this.ht = 0;
-  this.gotoHt = 0;
-  this.gotoRotSpeed = 0;
-  this.rotSpeed = 0; // stored rate of rotation when the player pushes LEFT or RIGHT
-  this.hpMax = this.hp;
-  this.isVisible = false; // if the plane is on the screen
-  this.driver = null; // null = idle plane, {Person obj} = player controled, AI-1 = AI algorithm 1, AI-2 = AI algorithm 2, etc.
-  this.weaponIndex2 = 0;
-
-  this.bumpUp = function() {// Go UP in elevation
-    if (this.vel * 2 > this.velMin) { // If plane's velocity if over half the minimum
-    this.elevation += (this.elevation < this.elevationMax) ? 1 : 0;
-    this.gotoHt = elevationData[this.elevation];
-    if (this.ht === 0) { // If plane on ground and UP/W is pressed
-      this.velGoto = this.velMax; // accelarate plane to max speed
-      this.ht += elevationData.changeRate;
-    }
-  }
-};
-
-this.bumpDown = function() {// Go DOWN  in elevation
-  this.elevation -= (this.elevation > 0) ? 1 : 0;
-  this.gotoHt = elevationData[this.elevation];
-};
-
-this.update = function () {
-  if (this.driver === null) {// Driver is computer-controlled
-    AIAlgorithms(this);
+}
+Airplane.prototype.update = function () {
+  if (this.isAi) {// Driver is computer-controlled
+    this.ai();
   } else {// Driver is player-controlled
     this.rotSpeed += (this.gotoRotSpeed - this.rotSpeed) * this.rotSpeedConvergeRate;// Extra-smooth plane rotation, but AI can use this.rotSpeed = +/- this.rotSpeedMax;
   }
@@ -2204,7 +2321,7 @@ this.update = function () {
 
   if (this.ht > this.gotoHt) {// Going down
     this.ht -= elevationData.changeRate*2;
-    if (this.driver !== null) {
+    if (!this.isAi) {
       cam.gotoHt -= elevationData.changeRate*2;// Adjust camera height with airplane
     }
   }
@@ -2216,7 +2333,7 @@ this.update = function () {
   }
   if (this.ht < this.gotoHt - elevationData.changeRate) {// Going up
     this.ht += elevationData.changeRate;
-    if (this.driver !== null) {
+    if (!this.isAi) {
       cam.gotoHt += elevationData.changeRate;// Adjust camera height with airplane
     }
   }
@@ -2226,48 +2343,7 @@ this.update = function () {
   this.weapons[this.weaponIndex2*2].update();
   this.weapons[this.weaponIndex2*2+1].update();
 };
-
-this.onKeyDown = function (keyCode) { ////goal: more realistic plane liftoff
-  if (keyCode === 38 || keyCode === 87) { // up arrow or W
-    if (this.ht === 0) { // If plane is on the ground
-      this.velGoto = this.velMin;
-    } else {
-      this.velGoto = this.velMax;
-    }
-  } else if (keyCode === 40 || keyCode === 83) { // down arrow or S
-    this.velGoto = this.velMin;
-  } else if (keyCode === 37 || keyCode === 65) { // left arrow or A
-    this.gotoRotSpeed = -this.rotSpeedMax;
-  } else if (keyCode === 39 || keyCode === 68) { // right arrow or D
-    this.gotoRotSpeed = this.rotSpeedMax;
-  } else if (keyCode === 69) { // E key
-    this.bumpUp();
-  } else if (keyCode === 81) { // Q key
-    this.bumpDown();
-  } else if (keyCode === 13) { // Enter key
-    if (this.ht === 0) { // If plane's height is ground
-    this.velGoto = 0; // Stop plane
-    this.hp /= 10;// Reset HP
-    me.hpMax = me.hp;
-    me = this.driver;
-    this.driver = null;
-    me.isDead = false;
-    airObjects.push(me);
-    me.x = this.x;
-    me.y = this.y;
-  }
-}
-};
-
-this.onKeyUp = function (keyCode) {
-  if (keyCode === 38 || keyCode === 40 || keyCode === 87 || keyCode === 83) { // up, down, W, S
-    this.velGoto = this.velNormal;
-  } else if (keyCode === 37 || keyCode === 39 || keyCode === 65 || keyCode === 68) { // left, right, A, D
-    this.gotoRotSpeed = 0;
-  }
-};
-
-this.draw = function () { // don't override this
+Airplane.prototype.draw = function () { // don't override this
 this.displayedX = X(this.x, this.ht);
 this.displayedY = Y(this.y, this.ht);
 this.displayedRadius = S(this.radius, this.ht);
@@ -2289,121 +2365,100 @@ if (this.displayedX + this.displayedRadius > 0 && this.displayedX - this.display
   noStroke();
   */
 };
-
-this.infoBar = function () { // shows HP and height when to planes on map (don't override)
+Airplane.prototype.infoBar = function () { // shows HP and height when to planes on map (don't override)
 fill(teamColors[this.team]);
 var hpBarLength = 40 * this.hp / this.hpMax;
 rect(this.displayedX - 20, this.displayedY - this.displayedRadius, hpBarLength, 2);
 fill(teamColors[this.team], 50);
 rect(this.displayedX + hpBarLength - 20, this.displayedY - this.displayedRadius, 40 - hpBarLength, 2);
 };
-};
 
-Person = function (x, y) {
+Blobling = function (team, x, y) {
   this.isDead = false;
+  this.type = "blobling";
   airObjects.push(this);
-  this.name = "Random Person " + Math.floor(random(0, 1000));
+  infoBarObjects.push(this);
+  this.name = "Blobling " + Math.floor(random(0, 1000));
   this.rot = 0;
+  this.type = "blobling"
+  this.isAi = true;
+  this.aiCheckTimer = this.aiCheckReset = 63;
+  this.aiTarget = null;
+  this.team = team;
   this.x = x;
   this.y = y;
-  this.radius = 0.001;
-  this.color = color(255, 0, 0);
-  this.vel = 0.0002; // max walking speed
+  this.hp = this.maxHp = 2;
+  this.radius = 0.0006;
+  this.color = teamColors[team];
+  this.vel = 0.0002 - random(0, 0.00004); // max walking speed
   this.velX = 0; // stored speed in x-direction
   this.velY = 0; // stored speed in y-direction
   this.ht = 0; // required property
-  this.showCirclesOfEnter = false;
   this.weapons = [];// Required property for weaponScroller to work
-  ///this.image = getImage("creatures/OhNoes");
-  this.image = loadImage("Images/questionmark.png");
-  this.isGoingLeft = true;
 
-  this.onMouseUp = this.onMouseDown = function () {};
-
-  this.onKeyDown = function (theKey) {
-    if (theKey === 38 || theKey === 87) {
-      this.velY = -this.vel;
-    } else if (theKey === 40 || theKey === 83) {
-      this.velY = this.vel;
-    } else if (theKey === 37 || theKey === 65) {
-      this.velX = -this.vel;
-      this.isGoingLeft = true;
-    } else if (theKey === 39 || theKey === 68) {
-      this.velX = this.vel;
-      this.isGoingLeft = false;
-    } else if (theKey === 13) { //enter key
-      this.showCirclesOfEnter = true;
-      var bestDist = 500;
-      var bestIndex = null;
-      for (var i = 0; i < infoBarObjects.length; i++) {
-        var theDist = Math.sqrt(sq(infoBarObjects[i].x - this.x) + sq(infoBarObjects[i].y - this.y));
-        if (theDist < infoBarObjects[i].radius && theDist < bestDist) {
-          bestDist = theDist;
-          bestIndex = i;
+  this.ai = function() {
+    if (!--this.aiCheckTimer) {
+      this.aiCheckTimer = this.aiCheckReset;
+      if (this.aiTarget && !this.aiTarget.isAi && dist(this.x, this.y, this.aiTarget.x, this.aiTarget.y) < this.aiTarget.radius) {
+        this.isDead = true;
+        this.aiTarget.isAi = true;
+      } else {// Find closest object
+        var bestDist = 999;
+        var bestObj = null;
+        for (var i = 0; i < infoBarObjects.length; i ++) {
+          var iboi = infoBarObjects[i];;
+          if (!iboi.isAi && iboi.team === this.team && iboi.type !== "blobling") {
+            var distance = dist(iboi.x, iboi.y, this.x, this.y);
+            if (distance < bestDist) {
+              bestDist = distance;
+              bestObj = iboi;
+            }
+          }
         }
-      }
-      if (bestIndex !== null) {
-        me = infoBarObjects[bestIndex];
-        me.driver = this;
-        me.hp *= 10;
-        me.hpMax = me.hp;
-        this.velX = 0;
-        this.velY = 0;
-        this.isDead = true;// Do this to remove Player from airObjects, while keeping an instance of the player in this.driver
-        cam.followOffsetDistance = 200;
+        this.aiTarget = bestObj;
       }
     }
-  };
-
-  this.onKeyUp = function (theKey) {
-    if (theKey === 38 || theKey === 87) {
-      this.velY = 0;
-    } else if (theKey === 40 || theKey === 83) {
-      this.velY = 0;
-    } else if (theKey === 37 || theKey === 65) {
-      this.velX = 0;
-    } else if (theKey === 39 || theKey === 68) {
-      this.velX = 0;
-    } else if (theKey === 13) { //enter key
-      this.showCirclesOfEnter = false;
+    if (this.aiTarget) {
+      if (this.x > this.aiTarget.x) {
+        this.velX = -this.vel;
+      } else {
+        this.velX = this.vel;
+      }
+      if (this.y > this.aiTarget.y) {
+        this.velY = -this.vel;
+      } else {
+        this.velY = this.vel;
+      }
     }
-
-  };
+  }
 
   this.update = function () {
-    cam.followOffsetDistance = 0;
-    cam.followOffsetAngle = 0; ////change if person is AI
+    if (this.isAi) {
+      this.ai();
+    }
     this.x += this.velX;
     this.y += this.velY;
-
-
   };
 
   this.draw = function () {
+    fill(red(this.color), green(this.color), blue(this.color), 100);
+    stroke(this.color);
+    strokeWeight(S(this.radius*0.1));
+    var disX = X(this.x);
+    var disY = Y(this.y);
+    var angle = atan2(mouseY-disY, mouseX-disX);
+    var ca = S(cos(angle)*this.radius*0.03);
+    var sa = S(sin(angle)*this.radius*0.03);
+    ellipse(disX, disY, S(this.radius*1.8), S(this.radius*1.8));
+    ellipse(disX+sa*35, disY-ca*35, S(this.radius*0.5), S(this.radius*0.5));
+    ellipse(disX-sa*35, disY+ca*35, S(this.radius*0.5), S(this.radius*0.5));
+    stroke(0);
 
-    push();
-    translate(X(this.x), Y(this.y));
-    if (this.isGoingLeft) {
-      scale(-1, 1);
-    }
-    var displayedSize = S(this.radius)*2;
-    image(this.image, 0, 0, displayedSize, displayedSize);
-    pop();
-
-
-    if (this.showCirclesOfEnter) {
-      stroke(255, 255, 255);
-      noFill();
-      strokeWeight(2);
-      for (var i = 0; i < infoBarObjects.length; i++) {
-        var iboi = infoBarObjects[i];
-        ellipse(X(iboi.x), Y(iboi.y), S(iboi.radius * 2), S(iboi.radius * 2)); ///hmm could I switch to iboi.displayedX?
-      }
-
-      noStroke();
-    }
+    strokeWeight(S(this.radius*0.08));
+    line(disX+ca*9+sa*7, disY+sa*9-ca*7, disX+ca*20+sa*7, disY+sa*20-ca*7);
+    line(disX+ca*9-sa*7, disY+sa*9+ca*7, disX+ca*20-sa*7, disY+sa*20+ca*7);
+    noStroke();
   };
-
 };
 
 Explosion = function(source, howMuchFire) {// Source is an Airplane object
@@ -2438,7 +2493,7 @@ Explosion = function(source, howMuchFire) {// Source is an Airplane object
   this.snipVelXs = [];
   this.snipVelYs = [];
   this.snipImages = [];
-  if (zSizeX >= 1) {// Program freezes if you attempt to get() with a width/height of < 1
+  if (zSizeX >= 2) {// Program freezes if you attempt to get() with a width/height of < 1
     source.draw();
     for (var i = 0; i < 4; i ++) {
       for (var j = 0; j < 4; j ++) {
@@ -2465,8 +2520,9 @@ Explosion = function(source, howMuchFire) {// Source is an Airplane object
   for (var i = 0; i < howMuchFire; i ++) {// Generate extra fire with explosion
     this.generateMoreFire();
   }
+};
 
-  this.update = function() {
+Explosion.prototype.update = function() {
     // Move snipped image debris
     for (var i = 0; i < this.snipXs.length; i ++) {//pieces
       this.snipXs[i] += this.snipVelXs[i];//move the pieces
@@ -2481,14 +2537,17 @@ Explosion = function(source, howMuchFire) {// Source is an Airplane object
   };
 
 
-  this.draw = function() {
+Explosion.prototype.draw = function() {
     // Draw snipped image debris
-    var theSize = max(2, S(this.jumpByX, this.ht));///merge jumpByX and jumpByY
-    //if (theSize !== 0) {
+    var theSize = S(this.jumpByX, this.ht);///merge jumpByX and jumpByY
+    if (theSize > 1.5) {
     for (var i = 0; i < this.snipXs.length; i ++) {//pieces
-      ////image(this.snipImages[i], X(this.snipXs[i], this.ht), Y(this.snipYs[i], this.ht), theSize, theSize);
+      var xposition = X(this.snipXs[i], this.ht);
+      var yposition = Y(this.snipYs[i], this.ht);
+      if (-xposition < theSize && -yposition < theSize && xposition < width && yposition < height)
+        image(this.snipImages[i], xposition, yposition, theSize, theSize);
+      }
     }
-    ///}
 
     // Draw fire particles
     for (var i = 0; i < this.fireXs.length; i++) {//fire
@@ -2497,7 +2556,7 @@ Explosion = function(source, howMuchFire) {// Source is an Airplane object
     }
   };
 
-};
+
 
 SimpleTemplate = function(x, y, rot) {
   // Always the same
@@ -2614,12 +2673,12 @@ var TeamStats = function() {
     }
 
     /* Check if player is dead */
-    if (me.isDead) {
+    if (controller.me.isDead) {
       notification.send("You died", 4);
       if (this.teamBases[0].length > 0) {// If you have a hangar built
-        me = new Person(0, this.teamBases[0][0].x, this.teamBases[0][0].y);// Spawn player in a team hangar
+        controller.swap(new Blobling(0, this.teamBases[0][0].x, this.teamBases[0][0].y));// Spawn player in a team hangar
       } else {
-        me = new Person(0, this.teamTower[0].x, this.teamTower[0].y);// Spawn player near the team tower
+        controller.swap(new Person(0, this.teamTower[0].x, this.teamTower[0].y));// Spawn player near the team tower
       }
     }
 
@@ -2649,8 +2708,8 @@ var TeamStats = function() {
           var iboj = infoBarObjects[j];
           if (i === iboj.team) {// If object's team is the advancing team
           if (iboj.upgradeInto !== undefined) {// If object can upgrade (e.g. support pillars might not always upgrade)
-            if (iboj === me) {
-              weaponScroller.meUpgradeOldWeaponsCleanup();// Cleanup old weapons (bugfix)
+            if (iboj === controller.me) {
+              controller.meUpgradeOldWeaponsCleanup();// Cleanup old weapons (bugfix)
             }
 
             /* Upgrade the object (stats, images, and weapons) */
@@ -3012,7 +3071,7 @@ var Tutorial = function() {
     ""];
     this.triggers = [
       function(){return downKeys[75];/*K key*/},
-      function(){return me.velX!==me.velY;},
+      function(){return controller.me.velX!==controller.me.velY;},
       function(){return cam.gotoHt!==cam.ht;},
       function(){return pointer.hoverObject!==undefined&&pointer.hoverObject.hp===1000;},
       function(){return downKeys[75];},
@@ -3027,16 +3086,14 @@ var Tutorial = function() {
       function(){
         for (var i = 0; i < 8; i++) {
           new Airplane(0, 0+0.001*Number(i%2===0), -1+0.001*Math.floor(i/2), "f2a")
-
         }
-
       },
       0,
 
     ];
-    this.positions = [[], [width/2-150, height/2-150, 300, 140, "bottom"],
+    this.positions = [[], [function(){return width/2-150;}, function(){return height/2-150;}, 300, 140, "bottom"],
     [width/2-200, 10, 400, 200],
-    [10, 10, width/2, height-20, "right", function(){var tempHt=cam.ht;cam.ht=0.0003;var ycor=Y(teamStats.teamTower[0].y);cam.ht=tempHt;return ycor;}],
+    [10, 10, function(){return width/2;}, function(){return height-20;}, "right", function(){var tempHt=cam.ht;cam.ht=0.0003;var ycor=Y(teamStats.teamTower[0].y);cam.ht=tempHt;return ycor;}],
     [],
     []];
     this.onIndex = 0;
@@ -3051,20 +3108,14 @@ var Tutorial = function() {
     };
 
     this.nextBox = function() {
-      var beforeFunc = this.doThisBefore[this.onIndex];
-      if (typeof beforeFunc === "function") {
-        beforeFunc();
-      }
+      var beforeFunc = funcOrValue(this.doThisBefore[this.onIndex]);
       this.isVisible = true;
       var posi = this.positions[this.onIndex];
-      this.x = posi[0]||60;
-      this.y = posi[1]||60;
-      this.w = posi[2]||(width-120);
-      this.h = posi[3]||(height-120);
-      var arrowWhere = posi[5];
-      if (typeof arrowWhere === "function") {
-        arrowWhere = arrowWhere();
-      }
+      this.x = funcOrValue(posi[0]||60);
+      this.y = funcOrValue(posi[1]||60);
+      this.w = funcOrValue(posi[2]||(width-120));
+      this.h = funcOrValue(posi[3]||(height-120));
+      var arrowWhere = funcOrValue(posi[5]);
       this.isArrow = true;
       switch (posi[4]) {
         case "top":
@@ -3140,7 +3191,7 @@ var Tutorial = function() {
             // Instructions
             textFont(fonts.verdana, 11);
             fill(0, this.trans);
-            text(this.instructions[this.onIndex], this.x+10, this.y+10, this.w-10, this.h-1);
+            text(this.instructions[this.onIndex], this.x+10, this.y-this.h/4, this.w-10, this.h);
           }
           stroke(0, this.trans);
 
@@ -3290,7 +3341,6 @@ var Tutorial = function() {
         if (mouseX < x1+30 && mouseY < 40 && mouseX > x1 && mouseY > 10) {
           if (mouseIsPressed) {
             this.isGamePaused = true;
-            filter(BLUR, 2);// Blur screenshot
             this.screenshot = get(0, 0, width, height);
             scene = 3;// Change scene to freeze game
           }
@@ -3312,7 +3362,7 @@ var Tutorial = function() {
 
       /* Create trees */
       if (frameCount % 30 === 0) {// Every half-second...
-        if (infoBarObjects.length < 100) {// Create another tree if there are less than 100 objects on the map
+        if (infoBarObjects.length < 75) {// Create another tree if there are less than 75 objects on the map
           new simple.Tree1(random(-1, 1), random(-1, 1));
         }
       }
@@ -3444,15 +3494,13 @@ var Tutorial = function() {
       tempObjectReference: Turret
     }
   };
-
-
 };
 
 
 /** Create instances **/
 notification = new Notification();
 imageLoader = new ImageLoader();
-weaponScroller = new WeaponScroller();
+controller = new Controller();
 buildMenu = new BuildMenu();
 teamStats = new TeamStats();
 pointer = new Pointer();
@@ -3461,7 +3509,7 @@ pauseMenu = new PauseMenu();
 factory = new ObjectFactory();
 new MenuButton(1, "Tutorial", 0.5, 0.333, 0.666, 0.1, function(){createInstances("tutorial");notification.send("Tutorial started");scene++;});
 new MenuButton(1, "Start Game", 0.5, 0.5, 0.666, 0.1, function(){createInstances("game");notification.send("Game started with "+number_of_teams+" teams").send("Good luck!");scene++;});
-new MenuButton(1, "Stuffs", 0.5, 0.666, 0.666, 0.1, function(){notification.send("yay colors",Math.floor(random(0,4.999)));});
+new MenuButton(1, "Settings", 0.5, 0.666, 0.666, 0.1, function(){notification.send("todo settings",Math.floor(random(0,4.999)));});
 new MenuButton(3, "Resume", 0.5, .808, .625, 0.1, function(){pauseMenu.resumeGame();notification.send("Game Resumed");});
 new MenuButton(3, "Restart", 0.333, .925, .292, 0.1, function(){notification.send("Not yet implemented");});
 new MenuButton(3, "Menu", 0.666, .925, .292, 0.1, function(){notification.send("Not yet implemented");scene=1;});
@@ -3470,18 +3518,17 @@ new MenuButton(3, "Menu", 0.666, .925, .292, 0.1, function(){notification.send("
 
 }
 
-
 /** Build-in functions **/
 function mouseScroll(event) {
   var delta = event.deltaY;
 
-  if (weaponScroller.isMouseInside) {
-    weaponScroller.onMouseScroll(-delta);
+  if (controller.isMouseInside) {
+    controller.onMouseScroll(-delta);
   } else {
     if (delta < 0) {
-      cam.gotoHt += (me.ht-cam.gotoHt)*0.2;
+      cam.gotoHt += (controller.me.ht-cam.gotoHt)*0.2;
     } else {
-      cam.gotoHt -= (me.ht-cam.gotoHt)*0.2;
+      cam.gotoHt -= (controller.me.ht-cam.gotoHt)*0.2;
     }
   }
 
@@ -3491,7 +3538,7 @@ function keyPressed() {
   downKeys[keyCode] = true;
 
   if (scene === 2) {
-    me.onKeyDown(keyCode);
+    controller.onKeyDown(keyCode);
     tutorial.onKeyDown(key);
   }
 
@@ -3501,7 +3548,7 @@ function keyReleased() {
   downKeys[keyCode] = false;
 
   if (scene === 2) {
-    me.onKeyUp(keyCode);
+    controller.onKeyUp(keyCode);
   }
 };
 
@@ -3511,7 +3558,7 @@ function mousePressed() {
       document.getElementById("content").style.display = "block";
     }
   } else if (scene === 2) {// Main game scene
-    weaponScroller.onMouseDown(mouseButton);
+    controller.onMouseDown(mouseButton);
     buildMenu.onMouseDown();
   }
   for (var i = 0; i < guiStuffs[scene].length; i ++) {
@@ -3522,7 +3569,7 @@ function mousePressed() {
 
 function mouseReleased() {
   if (scene === 2) {// Main game scene
-    weaponScroller.onMouseUp(mouseButton);
+    controller.onMouseUp(mouseButton);
   }
   for (var i = 0; i < guiStuffs[scene].length; i ++) {
     guiStuffs[scene][i].onMouseUp();
@@ -3533,9 +3580,15 @@ function windowResized () {
   resizeCanvas(min(MAXCANVASWIDTH, windowWidth), min(MAXCANVASHEIGHT, windowHeight));
   cam.hw = windowWidth/2;
   cam.hh = windowHeight/2;
+  cam.followOffsetDistance = min(windowWidth, windowHeight)*0.4;
 
   if (teamStats) {
     teamStats.y1 = height;
+  }
+  if (tutorial) {
+    var tempVisible = tutorial.isVisible;
+    tutorial.nextBox();
+    tutorial.isVisible = tempVisible;
   }
 }
 
@@ -3623,7 +3676,7 @@ function draw() {
 
     buildMenu.update();
 
-    weaponScroller.update();
+    controller.update();
 
     teamStats.update();
     tutorial.update();
